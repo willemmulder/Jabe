@@ -1,0 +1,134 @@
+<html>
+<head>
+    <title>Javascriptbeest (Jabe) Simulation</title>
+    <script src='jquery.js'></script>
+    <script src='lowpro.jquery.js'></script>
+    <script src='jabesim.js'></script>
+    <script>
+        //-------------------------------------------------------------
+        // Executes when full page is loaded (and as such, images etc are loaded as well)
+        //-------------------------------------------------------------
+        var simulation;
+        jQuery( function($) {
+            simulation = $(".wereld").jabeSimulation();
+        });
+        
+        function startsimulation(button) {
+            //unload all current jabes
+            simulation.unloadAllJabes();
+            //check if 'Jabe_user' needs to be loaded
+            
+            //TODO: user jabe werkend maken... Dat evalgebeuren werkt niet :s
+            if ($("#runuserjabe").attr("checked")) {
+                var importClass = eval($("#userjabe").val());
+                var name = "Jabe_user";
+                simulation.getJabeTribes()[name] = { name: name, ancestor: eval(name + ".ancestor") };
+            }
+            //check which jabes are to be loaded
+            $("#paneel #jabes input[type=checkbox]").each(function() {
+                if ($(this).attr("checked")) {
+                    simulation.loadJabe($(this).val());
+                }
+            });
+            //(re)start simulation
+            simulation.start(); 
+            //set button text to 'restart'
+            $(button).html("restart");
+        }
+        
+    </script>
+    
+    <style>
+        body, html { padding: 0px; margin: 0px; font: 14px arial, verdana, sans-serif; }
+        #wrap { width: 1160px; left: 50%; margin-left: -580px; position: relative;}
+            #boven {  margin-left: 100px; width: 960px; border-top: 10px solid #000; }
+            #contentwrap { margin-left: 100px; width: 960px; position: relative; } 
+                #wereld_achter { background: #fff url("static/tekening.png"); border: 2px solid #000;width: 600px; height:600px; }
+                #wereld_interactie { display: none; position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; }
+                #paneel { position: absolute; left: 620px; top: 0px; }
+                    #paneel button { height: 40px; width: 160px; }
+                    #paneel textarea { width: 100%; height: 200px; }
+                    #paneel #jabes { padding-top: 10px; }
+                    #paneel #jabes input { }
+    </style>
+</head>
+
+<body>
+    <div id='wrap'>
+        <div id='boven'>
+            <h1>Jabe (Javascriptbeest) simulation</h1>
+            <small>This is a Chrome Experiment by <a href='http://fabricasapiens.nl' target='_blank'>Fabrica Sapiens</a>.</small>
+            <p>
+                Visible below is <strong>a small world</strong>. It is filled <strong>with different tribes of little Jabes</strong>.<br />
+                Initially, there is only one Jabe per tribe, awaiting to take on the available food and space.<br />
+                However, since some Jabes are extremely hungry and can multiply like crazy, both food and space decrease with time.<br />
+                It is then that <strong>every tribe and every Jabe needs to do its best to survive!</strong><br />
+                simply <strong><a href='javascript:void(0);' onClick='startsimulation("knop_start");'>click the start button on the right</a></strong> to get our Jabes going!<br/>
+                
+            </p>
+            <p>
+                Since the little Jabes are simply written in Javascript, you can write one too, right here, and join the battle!
+            </p>
+        </div>
+        <div id='contentwrap'>
+            <div id='paneel'>
+                <button id='knop_start' onClick='startsimulation(this);'>start</button>
+                <button id='knop_stop' onClick='simulation.pauseresume();'>pause / resume</button>
+                <h2 style='border-bottom: 2px solid #000;'>Your Jabe</h2>
+                <textarea id='userjabe'>
+Jabe_user = $.klass(Jabe_v1, {
+
+    name: "Jabe_user",
+    ancestor: "Jabe_v1",
+
+    //'action()' is called every round
+    //when this jabe has its turn
+    action: function() {
+        if (this.checkFood({x:0,y:0}) > 150) {
+            this.eat({amount: 250});
+        } else {
+            if (this.isWalkable({direction: "forward"}) == true && this.isOccupied({direction: "forward"}) == false) {
+                this.move();
+            } else {
+                this.turn({direction:"left"});
+                this.move();
+            }
+        }
+    }
+    
+});
+                </textarea>
+                <input type='checkbox' id='runuserjabe' checked='checked'>Include 'Jabe_user' in the next simulation?</input>
+                <h2 style='border-bottom: 2px solid #000;'>Other Jabes</h2>
+                <div id='jabes'>
+                    <form>
+                        <h2>Very easy / tutorial</h2>
+                        <input type="checkbox" value="Jabe_simpel" checked="checked">Default Tutorial 1 <small><a target="_blank" href='jabes/Jabe_simpel.js'>(see source)</a></small></input><br />
+                        <h2>Easy</h2>
+                        <input type="checkbox" value="Jabe_default" checked="checked">Default Easy 1 <small><a target="_blank" href='jabes/Jabe_default.js'>(see source)</a></small></input><br />
+                        <input type="checkbox" value="Jabe_2" checked="checked">Default Easy 2 <small><a target="_blank" href='jabes/Jabe_2.js'>(see source)</a></small></input><br />
+                        <h2>Medium</h2>
+                        <input type="checkbox" value="Jabe_3" checked="checked">Default Medium 1 <small><a target="_blank" href='jabes/Jabe_3.js'>(see source)</a></small></input><br />
+                        <h2>Hard</h2>
+                        <p>Is your Jabe the first?</p>
+                    </form>
+                </div>
+            </div>
+            <canvas id='wereld_achter' class='wereld'></canvas>
+            <div id='wereld_interactie' class='wereld'>laden...</div>
+        </div>
+    </div>
+    
+    <script type="text/javascript">
+		var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+		document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+	</script>
+	<script type="text/javascript">
+		var pageTracker = _gat._getTracker("UA-258109-5");
+		pageTracker._trackPageview();
+	</script>
+
+    
+</body>
+
+</html>
