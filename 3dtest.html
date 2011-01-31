@@ -1,0 +1,89 @@
+<html>
+    <head>
+        <style>
+            #container { width: 600px; height: 600px; background: #eeeeee; }
+        </style>
+        <script src='jquery.js'></script>
+        <script src='ThreeExtras.js'></script>
+        <script src='Stats.js'></script>
+        <script>
+        
+            // Well, dynamically drawing 10.000 cubes on a field runs at < 1 fps, so very not usable ;-)
+        
+            // Global config
+            var worldsize = { dx: 30, dz: 30 }; // in blocks
+        
+            // Global variables
+            var canvas,scene,camera,renderer;
+            var stats;
+            var objects = [];
+            var intervalid;
+        
+            $(
+                function() { 
+                    
+                    // Scene
+                    canvas = $('#container');
+                    scene = new THREE.Scene();
+                    
+                    // Camera
+                    camera = new THREE.Camera(75,canvas.width()/canvas.height(),1,10000);
+                    camera.position.x = 0;
+                    camera.position.z = 1; // x and z must not be both 0 or it breaks the y view to blank
+                    camera.position.y = 650;
+                    camera.target.position.x = camera.target.position.z = camera.target.position.y = 0;
+                    
+                    // Meshes
+                    var cubegeometry = new Cube(10,10,10);
+                    for(var x = 0; x < worldsize.dx; x++)
+                    {
+                        for(var z = 0; z < worldsize.dz; z++)
+                        {
+                            var object = new THREE.Mesh( cubegeometry, [ new THREE.MeshBasicMaterial( { color: 0xaaffaa, opacity: 1 }) , new THREE.MeshBasicMaterial( {color: 0x000000, wireframe: true }) ] );
+                            object.position.x = (worldsize.dx / 2 * -10) + (x * 10);
+                            object.position.y = 5;
+                            object.position.z = (worldsize.dz / 2 * -10) + (z * 10);
+                            object.autoUpdateMatrix = false;
+                            object.updateMatrix();
+                            objects.push(object);
+                            scene.addObject( object );
+                        }
+                    }
+                    
+                    projector = new THREE.Projector();
+                    
+                    // Renderer
+                    renderer = new THREE.WebGLRenderer(scene); // WebGLRenderer2 is waaaay to slow for some reason...
+                    renderer.setSize( canvas.width(), canvas.height() );
+                    canvas.append( renderer.domElement );
+                    
+                    // Stats
+                    stats = new Stats();
+                    stats.domElement.style.position = 'absolute';
+                    stats.domElement.style.top = '0px';
+                    document.body.appendChild( stats.domElement );
+                    
+                    // Set loop
+                    intervalid = setInterval( loop, 1000 / 60 );
+                    
+                }
+            );
+            
+            function loop()
+            {
+                // Render scene
+                renderer.render( scene, camera );
+                
+                // Update stats
+                stats.update();
+            }
+        
+        </script>
+    </head>
+    
+    <body>
+        <div id='container'>
+        </div>
+    </body>
+    
+</html>
