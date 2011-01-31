@@ -119,8 +119,9 @@ $.fn.jabeSimulation = function(setting){
         worldSizeX: 100, //TODO
         worldSizeY: 100, //TODO
         jabeEnergyCostPerTurn: 100,
+        jabeMaxEatPerTurn: 250,
         jabeInitialEnergy: 500, //make sure this is not lower than jabeEnergyCostPerTurn, as it will remove the jabe imediately the first turn
-        foodMaxGrowPerTurn: 1000 //TODO
+        foodMaxGrowPerTurn: 1000, //TODO
 	}, setting);
 
 	var worldBackground = this[0];
@@ -304,10 +305,21 @@ $.fn.jabeSimulation = function(setting){
         eat: function(opts) {
             if(this.checkActionsLeft() > 0) {
                 currentJabe.actionsExecuted++;
+                // Check how much the Jabe will eat
+                if (!opts.amount) 
+                {
+                    // Eat as much as Jabe can
+                    opts.amount = settings.jabeMaxEatPerTurn;
+                }
+                else
+                {
+                    // Level off the amount of food eaten to the max amount per turn
+                    opts.amount = Math.min(opts.amount, settings.jabeMaxEatPerTurn);
+                }
                 var takenfood = Math.min(opts.amount, world.getAreaAtXY(currentJabe.x, currentJabe.y).food);
                 currentJabe.energy += takenfood;
-                //while eating, a certain amount of plants are eaten in order to get the required energy/food
-                //thus, calculate the average plants/food (or food / plant), and then remove so much plants as needed for the required energy
+                // While eating, a certain amount of plants are eaten in order to get the required energy/food
+                // Thus, calculate the average plants/food (or food / plant), and then remove so much plants as needed for the required energy
                 var plantsperfood = world.getAreaAtXY(currentJabe.x, currentJabe.y).plants / world.getAreaAtXY(currentJabe.x, currentJabe.y).food;
                 world.getAreaAtXY(currentJabe.x, currentJabe.y).plants -= Math.round(takenfood * plantsperfood);
                 world.getAreaAtXY(currentJabe.x, currentJabe.y).food -= takenfood;
