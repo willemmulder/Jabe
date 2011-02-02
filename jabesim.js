@@ -5,15 +5,16 @@ Jabe_v1 = $.klass({
     actionsExecuted: 0,
     jabeFunctions:"",
     x:0,
-    y:0, //y=0 means on the TOP of the screen!
-    direction:0, //direction % 100. Then: 0 = top. 25 = right. 50 = bottom. 75 = left. 100 top again, etc
+    y:0, // y = 0 means on the TOP of the screen!
+    direction:0, // direction % 100. Then: 0 = top. 25 = right. 50 = bottom. 75 = left. 100 top again, etc
     energy:0,
+    memory: {},
 
     initialize : function(args) {
         this.jabeFunctions = args.jabeFunctions;
     },
 
-    //the 'free' actions that a jabe can execute infinitely in a round
+    // the 'free' actions that a jabe can execute infinitely in a round
     checkFood: function(opts) {
         return this.jabeFunctions.checkFood(opts);
     },
@@ -30,13 +31,13 @@ Jabe_v1 = $.klass({
         return this.jabeFunctions.checkActionsLeft(opts);
     },
     setDirection: function(opts) {
-        return this.jabefunctions.setDirection(opts);
+        return this.jabeFunctions.setDirection(opts);
     },
     turn: function(opts) {
         return this.jabeFunctions.turn(opts);
     },
     
-    //the actions that a Jabe can execute only as many times as 'settings.actionsPerTurn' , after which his turn ends
+    // the actions that a Jabe can execute only as many times as 'settings.actionsPerTurn' , after which his turn ends
     eat: function(opts) {
         return this.jabeFunctions.eat(opts);
     },    
@@ -48,6 +49,16 @@ Jabe_v1 = $.klass({
     },
     reproduce: function(opts) {
         return this.jabeFunctions.reproduce(opts);
+    },
+    
+    // Messaging system
+    sendMessage : function(opts)
+    {
+        return this.jabeFunctions.sendMessage(opts);
+    },
+    receiveMessage : function(opts)
+    {
+        return this.jabeFunctions.receiveMessage(opts);
     }
 
     
@@ -132,6 +143,7 @@ $.fn.jabeSimulation = function(setting){
 	var roundCount = 0;
 	var jabes = Array();
 	var currentJabe;
+	var actionJabe; // The cloned jabe that is used to sandbox all operations
 	var currentJabeId = -1;
 	var jabeTribes = {};
 
@@ -244,6 +256,9 @@ $.fn.jabeSimulation = function(setting){
                         world.getAreaAtXY(targetx,targety).occupiedBy = currentJabe;
                     }
                 }
+                // Update location
+                actionJabe.x = currentJabe.x;
+                actionJabe.y = currentJabe.y;
             }
         },
         attack: function(opts) {
@@ -305,6 +320,7 @@ $.fn.jabeSimulation = function(setting){
         eat: function(opts) {
             if(this.checkActionsLeft() > 0) {
                 currentJabe.actionsExecuted++;
+                if (!opts) { opts = {}; }
                 // Check how much the Jabe will eat
                 if (!opts.amount) 
                 {
@@ -316,33 +332,59 @@ $.fn.jabeSimulation = function(setting){
                     // Level off the amount of food eaten to the max amount per turn
                     opts.amount = Math.min(opts.amount, settings.jabeMaxEatPerTurn);
                 }
-                var takenfood = Math.min(opts.amount, world.getAreaAtXY(currentJabe.x, currentJabe.y).food);
+                var takenfood = Math.min(Math.abs(opts.amount), world.getAreaAtXY(currentJabe.x, currentJabe.y).food);
                 currentJabe.energy += takenfood;
                 // While eating, a certain amount of plants are eaten in order to get the required energy/food
                 // Thus, calculate the average plants/food (or food / plant), and then remove so much plants as needed for the required energy
-                var plantsperfood = world.getAreaAtXY(currentJabe.x, currentJabe.y).plants / world.getAreaAtXY(currentJabe.x, currentJabe.y).food;
-                world.getAreaAtXY(currentJabe.x, currentJabe.y).plants -= Math.round(takenfood * plantsperfood);
-                world.getAreaAtXY(currentJabe.x, currentJabe.y).food -= takenfood;
+                if (world.getAreaAtXY(currentJabe.x, currentJabe.y).food > 0)
+                {
+                    // Make sure .food > 0, because we would otherwise get a division by zero!
+                    var plantsperfood = world.getAreaAtXY(currentJabe.x, currentJabe.y).plants / world.getAreaAtXY(currentJabe.x, currentJabe.y).food;
+                    world.getAreaAtXY(currentJabe.x, currentJabe.y).plants -= Math.round(takenfood * plantsperfood);
+                    world.getAreaAtXY(currentJabe.x, currentJabe.y).food -= takenfood;
+                }
+                else
+                {
+                    // If there was no food, and the Jabe eats, there is still no food, but all the plants get zeroed
+                    world.getAreaAtXY(currentJabe.x, currentJabe.y).plants = 0;
+                    world.getAreaAtXY(currentJabe.x, currentJabe.y).food = 0;
+                }
+                
             }
         },
         reproduce: function(opts) {
             if (this.checkActionsLeft() > 0){
                 currentJabe.actionsExecuted++;
-                //create another Jabe of the same kind. It takes 1000 energy to produce a Jabe. Then, the rest of the energy is transfered to the new Jabe
-                //TODO: transfering energy costs a turn
-                currentJabe.energy -= opts.energy;
-                var newJabe = eval("new " + currentJabe.name + "({jabeFunctions: this })");
-                jabes.push(newJabe);
-                newJabe.x = currentJabe.x;
-                newJabe.y = currentJabe.y;
-                newJabe.actionsExecuted = 0;
-                newJabe.energy = (opts.energy - 1000);
+                if (!opts) { opts = {}; }
+                if (!opts.energy) { opts.energy = (currentJabe.energy - 1000) / 2; } // Evenly distribute the energy among parent and child
+                if (opts.energy > 0)
+                {
+                    //create another Jabe of the same kind. It takes 1000 energy to produce a Jabe. Then, the rest of the energy is transfered to the new Jabe
+                    //TODO: transfering energy costs a turn
+                    currentJabe.energy -= opts.energy;
+                    var newJabe = eval("new " + currentJabe.name + "({jabeFunctions: this })");
+                    jabes.push(newJabe);
+                    newJabe.x = currentJabe.x;
+                    newJabe.y = currentJabe.y;
+                    newJabe.actionsExecuted = 0;
+                    newJabe.energy = (opts.energy - 1000);
+                    // If memory is set, the childs get this 'implanted'
+                    if (opts.memory)
+                    {
+                        newJabe.memory = opts.memory;
+                    }
+                    else
+                    {
+                        // If memory is not set, the child inherits the memory of its parent
+                        newJabe.memory = currentJabe.memory; 
+                    }
+                }
             }
         }
     };
 
 
-    //Klass that represents the world, and has actions to ie get a certain world-block at a certain x,y; or a Jabe at x,y; or a 'color' (for the renderer) at certain x,y etc.
+    // Klass that represents the world, and has actions to ie get a certain world-block at a certain x,y; or a Jabe at x,y; or a 'color' (for the renderer) at certain x,y etc.
     var World = $.klass({
 
 	    jabeWorldSizeX : 100,
@@ -383,7 +425,9 @@ $.fn.jabeSimulation = function(setting){
         round: function() {
             //let the food grow!
             for(x in this.jabeWorldAreas) {
+                x = parseInt(x);
                 for(y in this.jabeWorldAreas[x]) {
+                    y = parseInt(y);
                     var area = this.jabeWorldAreas[x][y];
                     if (area.type != "border") {
                         //the growth of food on a field is determined by the amount of existing plants that grow naturally
@@ -391,7 +435,7 @@ $.fn.jabeSimulation = function(setting){
                         //1. how much 'space' there is for new plants (the less crops on a field, the more growth potential)
                         //2. how many seeds get to the field (seeds come from adjacent fields and the field itself) 
                         //first, calculate the amount of seeds that come from the field itself and the surrounding fields
-                        seeds = 0;
+                        var seeds = 0;
                         for (dx = -1; dx<=1; dx++) {
                             for(dy = -1; dy<=1; dy++) {
                                 //skip when field is a border
@@ -401,7 +445,7 @@ $.fn.jabeSimulation = function(setting){
                                     //the amount of seeds is determined by the amount of plants that are available and the mean age of the plants (the older the plants, the more seeds)
                                     //the amount of seeds per plant varies from 0 - 10: a small plant (0 food) has 0 seeds, a fullgrown plant (1 food) has 10 seeds
                                     //thus, seeds = .plants * ( .food / .plants) * 10 = .food * 10
-                                    var fieldseeds = this.jabeWorldAreas[(x*1)+dx][(y*1)+dy].food * 10;
+                                    var fieldseeds = this.jabeWorldAreas[x+dx][y+dy].food * 10;
                                     //at a field, 8/10 seeds are blown away, 2/10 stays in the same field
                                     if(fieldseeds > 0) {
                                         if (dx == 0 && dy == 0) {
@@ -417,19 +461,21 @@ $.fn.jabeSimulation = function(setting){
                         }
                         //now, from the seeds that come to this field, they only turn into plants when there is space for them to grow (and where they don't die etc)...
                         //max 10 000 seeds can come onto a field, of which a max of 10 will turn into plants
-                        if (seeds > 0) {
-                            currentPlants = area.plants;
-                            newPlants = Math.round(seeds / 1000 * (1 - (currentPlants / 1000)) );
-                            area.plants = currentPlants + newPlants;
+                        if (seeds > 0) 
+                        {
+                            var currentPlants = area.plants;
+                            var newPlants = Math.round(seeds / 1000 * (1 - (currentPlants / 1000)) );
+                            area.plants = currentPlants + newPlants;                            
                         }
+                        
                         //and now, let the plants grow!!
-                        //every plant gets 0.1 food per turn
-                        currentFood = area.food;
-                        newFood = Math.round((currentPlants + newPlants) * 0.05);
+                        //every plant grows 0.05 food per turn
+                        var currentFood = area.food;
+                        var newFood = Math.round(area.plants * 0.05);
                         if (currentFood+newFood > 1000) {
                             area.food = 1000;
                         } else {
-                            area.food = currentFood+newFood;
+                            area.food = currentFood + newFood;
                         }
                     }
                 }
@@ -442,10 +488,10 @@ $.fn.jabeSimulation = function(setting){
 
         getColorAtXY: function(x,y) {
             //food-amount ranges from 0 to 1000
-            rgbval = Math.round(this.getAreaAtXY(x,y).food * 255 / 1000);
+            var rgbval = Math.round(this.getAreaAtXY(x,y).food * 255 / 1000);
             //to speed up the simulation, round the value to 26 shades
             //then, more subsequent values will have the same color, so that setColor on the canvas does not need to be called
-            rgbval = Math.round(rgbval / 10) * 10;
+            rgbval = Math.floor(rgbval / 10) * 10;
             return "rgb(0," + rgbval + ",0)"; //food is green
         }
 
@@ -592,6 +638,8 @@ $.fn.jabeSimulation = function(setting){
             newJabe = eval("new " + jabeName + "({jabeFunctions: this.jabeFunctions})");
             jabes.push(newJabe);
             newJabe.energy = settings.jabeInitialEnergy;
+            newJabe.memory = {};
+            newJabe.actionsExecuted = 0;
             //calculate starting locations
             //jabes start in a circle, evenly distributed on it
             newJabe.x = Math.round( Math.sin(Math.round(tribeCounter / Object.size(jabeTribes) * 2 * Math.PI * 10000) / 10000 + offset) * (settings.worldSizeX / 3) + (settings.worldSizeX / 2) );
@@ -667,12 +715,12 @@ $.fn.jabeSimulation = function(setting){
                         currentJabeId--;
                         continue;
                     } else {
-                    globalvar.beforeCurrentJabeId = currentJabeId;
-                        actionJabe = Object.clone(currentJabe);
-                        actionJabe.action(); //this will place the Jabe in a sandbox, so that the Jabe can do this.x = 50, but that will not work,
+                        globalvar.beforeCurrentJabeId = currentJabeId;
+                        actionJabe = Object.clone(currentJabe); //this will place the Jabe in a sandbox, so that the Jabe can do this.x = 50, but that will not work,
                                              //as only the .x of the actionJabe is changed, not the 'real x' of the currentJabe
                                              //when a function like this.move() is called however, the jabeFunctions will work on the currentJabe, NOT on the actionJabe
-                        //this should be done with SVG, and made interactive...
+                        actionJabe.action();
+                        // (this might be done with SVG, and made interactive...)
                         //if jabe still exists (i.e. didn't die), then draw it
                         if (currentJabe != null) {
                             counter = 0;
