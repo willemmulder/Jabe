@@ -140,12 +140,13 @@ $.fn.jabeSimulation = function(setting){
 	var svgWorld;
 	var timer;
 	var roundFlag = false;
-	var roundCount = 0;
+	var roundCount = -1;
 	var jabes = Array();
 	var currentJabe;
 	var actionJabe; // The cloned jabe that is used to sandbox all operations
 	var currentJabeId = -1;
 	var jabeTribes = {};
+	var jabeUnderInspection = false; // Jabe for which info is shown
 
     //these are the variables and functions that are accessible by the Jabes
     this.jabeFunctions = {
@@ -505,7 +506,7 @@ $.fn.jabeSimulation = function(setting){
         context2D : "",
         canvasSizeX : 0, //the real size of the canvas element on-screen
         canvasSizeY : 0,
-        drawingSizeX : 0, //the size of the drawed elements alltogether (how many pixels wide the drawing is)
+        drawingSizeX : 0, //the size of the drawed elements alltogether (how many pixels wide the drawing is). If every Jabe is 1 pixel wide (and it is), this will be the jabeWorldSizeX of the 'world' variable. See the set-up at the bottom, where the drawingSizeX and drawingSizeY are assigned to, indeed, jabeWorldSizeX and jabeWorldSizeY respectively
         drawingSizeY : 0, 
         fitDrawingToCanvas : true,
         initialize: function(canvasElm) {
@@ -524,27 +525,27 @@ $.fn.jabeSimulation = function(setting){
         },
 
         translateCoords: function() {
-            //(assuming x,y,width,height as arguments)
-            //first, reverse the Y Axis (!)
-            //canvas sees y=0 at top, while we see y=0 at bottom. So simply reverse
+            // (assuming x,y,width,height as arguments)
+            // first, reverse the Y Axis (!)
+            // canvas sees y=0 at top, while we see y=0 at bottom. So simply reverse
             args = arguments;
             args[1] = (this.drawingSizeX - 1 - args[1]); //flipzor
-            //translate the coords from the drawing to the canvas
-            //if fitDrawingToCanvas is enabled, then fit the drawing on how wide/high the canvas is
+            // translate the coords from the drawing to the canvas
+            // if fitDrawingToCanvas is enabled, then fit the drawing on how wide/high the canvas is
             if (this.fitDrawingToCanvas == true) {
-                //find out whether Width of Height is the most restraining factor
-                //thus if the translation should be on basis of Width or Height
+                // find out whether Width of Height is the most restraining factor
+                // thus if the translation should be on basis of Width or Height
                 if (this.drawingSizeX / this.canvasSizeX > this.drawingSizeY / this.drawingSizeY) {
                     //restraint on height
                     factor = this.canvasSizeX / this.drawingSizeX;
                     return Array(arguments[0] * factor, args[1] * factor, args[2] * factor, args[3] * factor, args[4] * factor);
                 } else {
-                    //restraint on width
+                    // restraint on width
                     factor = this.canvasSizeY / this.drawingSizeY;
                     return Array(arguments[0] * factor, args[1] * factor, args[2] * factor, args[3] * factor, args[4] * factor);
                 }
             } else {
-                //otherwise, just return
+                // otherwise, just return
                 return args;
             }
             
@@ -755,6 +756,38 @@ $.fn.jabeSimulation = function(setting){
                          }
                     }
                 }*/
+                //-------------
+                // SHOW JABE-INSPECTION INFORMATION
+                //-------------
+                // If there is a Jabe under inspection, show the info of that jabe
+	            if (jabeUnderInspection != false)
+	            {
+	                // Show info-screen
+	                $("#jabesim-info-screen").html("<strong>" + jabeUnderInspection.name + "</strong> with " + jabeUnderInspection.energy + " energy").show();
+	                // Also make clear which Jabe is under inspection
+	                var counter = 0;
+                    for(tribeName in jabeTribes) {
+                        counter++;
+                        if (jabeUnderInspection.name == tribeName) {
+                            break;
+                        }
+                    }
+                    if (counter == 1) { 
+                        renderer.setFill("rgb(0,0,255)"); //blue
+                    } else if (counter == 2) {
+                        renderer.setFill("rgb(255,255,0)"); //yellow
+                    } else if (counter == 3) {
+                        renderer.setFill("rgb(255,255,255)"); //white
+                    } else {
+                        renderer.setFill("rgb(200,0,200)"); //red
+                    }
+	                renderer.drawFillCircle(jabeUnderInspection.x-0.5,jabeUnderInspection.y+0.5,2,2);
+	            }
+	             else
+	            {
+	                // If there is no jabes under inspection, hide the info-screen
+	                $("#jabesim-info-screen").hide();
+                }
                 
                 //mark the end of the turn, so that a new one can be started
                 roundFlag = false;
@@ -766,19 +799,55 @@ $.fn.jabeSimulation = function(setting){
         }
     }
 
-    //init
-    //first, initialize the background (non-interactive part of the UI) with a fast 2D renderer on the <canvas> element
+    // Init
+    // Initialize the background (non-interactive part of the UI) with a fast 2D renderer on the <canvas> element
     renderer = new Renderer(worldBackground);
     renderer.clear();
-	//second, initialize the interactive part of the UI (the svgWorld, using the Raphael SVG engine)
-    //svgWorld = new Raphael(worldInteraction.id);
-    //svgWorld.clear();
-    //now load the default jabe
-    this.loadJabe("Jabe_default");
-    //set up the world
+    // Set up the world
     var world = new World();
     renderer.drawingSizeX = world.jabeWorldSizeX;
-    renderer.drawingSizeY = world.jabeWorldSizeY;    
+    renderer.drawingSizeY = world.jabeWorldSizeY;  
+    // Initialize the interactive part of the UI
+	$(worldBackground).bind("mousemove", function(event)
+	{
+	    if (roundCount > 0)
+	    {
+	        // check if there is any Jabe under the mouse 
+	        var mousedx = event.pageX - $(worldBackground).offset().left;
+	        var mousedy = event.pageY - $(worldBackground).offset().top;
+	        // Now, since the y is 0 at top, and the simulation works with a 'normal' axis system with y=0 at the bottom, invert the y
+	        mousedy = renderer.canvasSizeY - 1 - mousedy;
+	        // Get the worldx and worldy
+	        var worldx = Math.floor(mousedx * (renderer.drawingSizeX / renderer.canvasSizeX));
+	        var worldy = Math.floor(mousedy * (renderer.drawingSizeY / renderer.canvasSizeY));
+	        var area = world.getAreaAtXY(worldx, worldy);
+	        if (area.occupied)
+	        {
+	            jabeUnderInspection = area.occupiedBy;
+	        }
+	        else
+	        {
+	            // Search for jabes in close environment
+	            var jabe = "";
+	            outerloop: for(x=-1;x<=1;x++) 
+                {
+                    for(y=-1;y<=1;y++) 
+                    {
+                        var area = world.getAreaAtXY(worldx+x, worldy+y);
+                        if (area.occupied)
+                        {
+                            jabeUnderInspection = area.occupiedBy;
+                            break outerloop;
+                        }
+                    }
+                }
+	        }
+        }
+    }
+    );
+    // Add info-screen to document 
+    $(worldBackground).after("<div id='jabesim-info-screen' style='display: none; padding: 10px; width: " + ($(worldBackground).width()-20) + "px; border: 2px solid #000; background: #000; color: #fff; opacity:0.8; filter:alpha(opacity=80);'></div>");
+      
     //now wait untill the simulation is started
 
 	return this; //return this JQuery object

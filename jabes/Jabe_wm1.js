@@ -17,6 +17,7 @@ Jabe_wm1 = $.klass(Jabe_v1, {
         if (this.energy < 100 && this.checkFood({x:0,y:0}) > 110)
         {
             this.eat(); // Eat all you can
+            return;
         }
         // ACTION BASED ON LOCATION
         // Become a 'raider' if we are out of our base, and a 'farmer' if we are inside our base
